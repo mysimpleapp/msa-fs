@@ -4,6 +4,8 @@
 <link rel="import" href="msa-fs-dir-viewer.html"></link>
 <link rel="import" href="/utils/msa-popup.html"></link>
 <link rel="import" href="/user/msa-user-login.html"></link>
+<script src="/fs/prismjs/prism.js"></script>
+<link rel="stylesheet" href="/fs/prismjs/themes/prism-okaidia.css" />
 <style>
 msa-fs-explorer {
 	display: flex;
@@ -27,9 +29,12 @@ msa-fs-explorer .border {
 	border: 1px solid grey;
 }
 msa-fs-explorer .viewer {
-	padding: 5px;
+	/* padding: 5px; */
 	justify-content: center;
 	align-items: center;
+}
+msa-fs-explorer .viewer > * {
+	margin: 0;
 }
 </style>
 <!-- template -->
@@ -241,7 +246,7 @@ msa-fs-explorer .viewer {
 
 	// show dir in viewer
 	explorerMethods.showDirInViewer = function(path, files) {
-    this.viewerType = "dir"
+		this.viewerType = "dir"
 		this.clearViewer()
 		var explorer = this
 		var viewer = this.Q(".viewer")
@@ -260,7 +265,7 @@ msa-fs-explorer .viewer {
 
 	// show image in viewer
 	explorerMethods.showImageInViewer = function(path){
-    this.viewerType = "img"
+		this.viewerType = "img"
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
 		var img = document.createElement("img")
@@ -270,7 +275,7 @@ msa-fs-explorer .viewer {
 
 	// show video in viewer
 	explorerMethods.showVideoInViewer = function(path, type){
-    this.viewerType = "video"
+		this.viewerType = "video"
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
 		var video = document.createElement("video")
@@ -282,36 +287,49 @@ msa-fs-explorer .viewer {
 
 	// show text in viewer
 	explorerMethods.showTextInViewer = function(path){
-    this.viewerType = "text"
+		this.viewerType = "text"
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
 		var url = join(this.getBaseUrl(), path)
 		Msa.get(url, { query:{ mode:"text" }}, function(text){
+			// create pre element
 			var pre = document.createElement("pre")
 			pre.classList.add('fill')
+			// check if this is code, and determine language
+			var ext = path.split('.').pop()
+			if(["js", "css", "html", "json", "xml"].indexOf(ext) !== -1) var lang = ext
+			if(lang) pre.classList.add("language-" + lang)
 			pre.textContent = text
+			// highlight
+			if(window.Prism) Prism.highlightElement(pre, true)
 			viewer.appendChild(pre)
 		})
 	}
 
-  // edit
-  explorerMethods.edit = function(){
-    if(this.viewerType !== "text") return
-    this.editing = true
-    var pre = this.Q(".viewer pre")
-    pre.setAttribute("contenteditable", true)
-  }
+	// edit
+	explorerMethods.edit = function(){
+		if(this.viewerType !== "text") return
+		this.editing = true
+		var pre = this.Q(".viewer pre")
+		pre.setAttribute("contenteditable", true)
+		pre.onkeydown = (evt) => {
+			if (evt.keyCode === 13) {
+				document.execCommand('insertHTML', false, '\n');
+				return false; 
+			}
+		}
+	}
 
-  // save
-  explorerMethods.save = function(){
-    if(!this.editing) return
-    var pre = this.Q(".viewer pre")
-    content = pre.textContent
-    var url = join(this.getBaseUrl(), this.getPath())
+	// save
+	explorerMethods.save = function(){
+		if(!this.editing) return
+		var pre = this.Q(".viewer pre")
+		content = pre.textContent
+		var url = join(this.getBaseUrl(), this.getPath())
 		Msa.post(url, {body:content}, function(res){
 			explorer.refresh()
 		})
-  }
+	}
 
 	// get selected file names from cascade
 	explorerMethods.getSelectedNames = function() {
@@ -392,8 +410,8 @@ msa-fs-explorer .viewer {
 		oncreate: function() {
 
 			// attributes ////////////////////////////////////////
-      this.editing = false
-      this.viewerType = null
+			this.editing = false
+			this.viewerType = null
 			this.fileCache = {}
 
 			// methods //////////////////////////////////////////
