@@ -1,0 +1,157 @@
+<link rel="import" href="/msa/msa.html"></link>
+<link rel="import" href="msa-fs.html"></link>
+<style>
+msa-fs-dir-viewer {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+}
+msa-fs-dir-viewer .file {
+	display: inline-flex;
+	flex-direction: column;
+	padding: 5px;
+}
+msa-fs-dir-viewer .file .icon {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	width: 100px;
+	height: 100px;
+}
+msa-fs-dir-viewer .file .icon svg {
+	width: 100%;
+	height: 100%;
+}
+msa-fs-dir-viewer .file .icon img {
+	max-width: 100%;
+	max-height: 100%;
+}
+msa-fs-dir-viewer .file .name {
+	position: relative;
+	width: 100px;
+	height: 20px;
+	text-align: center;
+}
+msa-fs-dir-viewer .file .name .text {
+	position: absolute;
+	width: 100%;
+	height: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+msa-fs-dir-viewer .file:hover {
+	background-color: #EEF;
+}
+msa-fs-dir-viewer .file:hover .name .text {
+	height: auto;
+	white-space: normal;
+	overflow: visible;
+	word-wrap: break-word;
+	background-color: #EEF;
+}
+msa-fs-dir-viewer .file.selected {
+	background-color: #DDF;
+}
+</style>
+<script>
+(function() {
+
+	var join = MsaFs.join,
+		parseUrlArgs = Msa.parseUrlArgs
+
+	// methods
+	var viewerMethods = {}
+
+	viewerMethods.getRootPath = function() {
+		return this.getAttribute("root-path") || ""
+	}
+	viewerMethods.getPath = function() {
+		var path = this.getAttribute("path") || "/"
+		return join(this.getRootPath(), path)
+	}
+	viewerMethods.getRequestServer = function() {
+		return this.getAttribute("request-server") !== "false"
+	}
+	viewerMethods.getBaseUrl = function() {
+		return this.getAttribute("base-url") || "/fs/api"
+	}
+
+	viewerMethods.addPath = function(subPath) {
+		if(this.getRequestServer()) {
+			this.listFiles()
+			var path = this.getAttribute("path")
+			this.setAttribute("path", join(path, subPath))
+		}
+	}
+
+	// list files from server
+	viewerMethods.listFiles = function() {
+		var viewer = this
+		var url = join(explorer.getBaseUrl(), path)
+		Msa.get(url, function(files){
+			viewer.showFiles(files)
+		})
+	}
+
+	// show given files
+	viewerMethods.showFiles = function(files) {
+		this.innerHTML = ""
+		var viewer=this, path=this.getPath(), baseUrl=this.getBaseUrl()
+		files.forEach(function(file){
+			var fileDom = document.createElement("div")
+			fileDom.classList.add("file")
+			fileDom.innerHTML = "<div class='icon'><svg><use xlink:href='#msa-fs-"+file.type+"'></use></svg></div><div class='name'><div class='text'>" + file.name + "</div></div>"
+			fileDom.file = file
+			fileDom.onclick = function(evt) {
+				if(!this.classList.contains("selected")) {
+					if (!evt.ctrlKey) viewer.clearSelection()
+					viewer.dispatchEvent(new CustomEvent('select', {detail:{path:path, file:file}}))
+				}
+				this.classList.toggle("selected")
+			}
+			fileDom.ondblclick = function() {
+				viewer.dispatchEvent(new CustomEvent('dblselect', {detail:{path:path, file:file}}))
+				if(file.type=="dir") viewer.addPath(file.name)
+			}
+			viewer.appendChild(fileDom)
+			var mime = file.mime
+			var mime1 = mime.split('/')[0]
+			if(mime1==='image' || mime1==='video'){
+				var img = document.createElement('img')
+				img.src = join(baseUrl, path, file.name)+'?mode=thumb'
+				img.onload = function(){
+					var icon = fileDom.querySelector('.icon')
+					icon.innerHTML = ''
+					icon.appendChild(img)
+				}
+			}
+		})
+	}
+
+	viewerMethods.clearSelection = function() {
+		var selecteds = this.querySelectorAll(".selected")
+		for(var i=0, len=selecteds.length; i<len; ++i) {
+			selecteds[i].classList.remove("selected")
+		}
+	}
+
+	viewerMethods.getSelectedFiles = function() {
+		var files = []
+		var selecteds = this.querySelectorAll(".selected")
+		for(var i=0, len=selecteds.length; i<len; ++i)
+			files.push(selecteds[i].file)
+		return files
+	}
+
+	// register msa-fs-explorer
+	Msa.registerElement("msa-fs-dir-viewer", {
+		oncreate: function() {
+			Object.assign(this, viewerMethods)
+		},
+		onattach: function() {
+			if(this.getRequestServer()) this.listFiles()
+		}
+	})
+})()
+</script>

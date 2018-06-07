@@ -1,0 +1,130 @@
+<link rel="import" href="/msa/msa.html"></link>
+<!-- svg -->
+<svg id="msa-fs-svg" style="display:none">
+	<!-- file -->
+	<symbol id="msa-fs-file" viewBox="0 0 32 32" fill="#55F">
+		<path d="M28.681 7.159c-0.694-0.947-1.662-2.053-2.724-3.116s-2.169-2.030-3.116-2.724c-1.612-1.182-2.393-1.319-2.841-1.319h-15.5c-1.378 0-2.5 1.121-2.5 2.5v27c0 1.378 1.122 2.5 2.5 2.5h23c1.378 0 2.5-1.122 2.5-2.5v-19.5c0-0.448-0.137-1.23-1.319-2.841zM24.543 5.457c0.959 0.959 1.712 1.825 2.268 2.543h-4.811v-4.811c0.718 0.556 1.584 1.309 2.543 2.268zM28 29.5c0 0.271-0.229 0.5-0.5 0.5h-23c-0.271 0-0.5-0.229-0.5-0.5v-27c0-0.271 0.229-0.5 0.5-0.5 0 0 15.499-0 15.5 0v7c0 0.552 0.448 1 1 1h7v19.5z"></path>
+	</symbol>
+	<!-- dir -->
+	<symbol id="msa-fs-dir" viewBox="0 0 32 32" fill="#CC0">
+		<path d="M14 4l4 4h14v22h-32v-26z"></path>
+	</symbol>
+</svg>
+<script>
+(function(){
+	var doc = Msa.getDoc()
+	var svg = doc.querySelector("svg#msa-fs-svg")
+	document.body.appendChild(svg)
+})()
+</script>
+<script>
+MsaFs = {}
+
+var join = MsaFs.join = function() {
+	var res = ""
+	for(var i=0, len=arguments.length; i<len; ++i) {
+		if(i>0) res += "/"
+		res += arguments[i]
+	}
+	return res.replace(/\/{2,}/g, '/')
+}
+
+var basename = MsaFs.basename = function(path) {
+	var i = path.lastIndexOf('/')
+	return path.substring(i+1)
+}
+
+var dirname = MsaFs.dirname = function(path) {
+	var i = path.lastIndexOf('/')
+	return path.substring(0, i-1)
+}
+
+
+var sendFile = MsaFs.sendFile = function(file, method, url, arg1, arg2) {
+	if(typeof arg1==="function") var onsuccess=arg1
+	else var args=arg1, onsuccess=arg2
+	// create FormData
+	var form = new FormData()
+	// fields
+	var fields = args && args.fields
+	if(fields)
+		for(var k in fields)
+			form.set(k, fields[k])
+	// files
+	var files = (file.length===undefined) ? [file] : file
+	for(var i=0, len=files.length; i<len; ++i)
+		form.append("files[]", files[i])
+	// send
+	var args2 = Object.assign({}, args)
+	args2.body = form
+	args2.contentType = null
+	Msa.send(method, url, args2, onsuccess)
+
+}
+/*var sendFile = MsaFs.sendFile = function(file, method, url, args, next) {
+	var xhr = new XMLHttpRequest()
+	xhr.open(method, url)
+	var form = new FormData()
+
+	if(args)
+		for(var k in args)
+			form.append(k, args[k])
+	
+	var files = (file.length===undefined) ? [file] : file
+	for(var i=0, len=files.length; i<len; ++i)
+		form.append("files[]", files[i])
+
+	if(next) {
+		if(typeof next==="function") next = { onloadok: next }
+		var onloadok = next.onloadok, onerror = next.onerror || _sendFile_defaultOnerror
+		if(!next.onload) {
+			xhr.onload = function(evt) {
+				if(xhr.status==200) {
+					if(onloadok) {
+						var res = xhr.responseText
+						res = res ? JSON.parse(res) : null
+						onloadok(res)
+					}
+				} else onerror(evt)
+			}
+		}
+		xhr.onerror = onerror
+		for(var evt in next) {
+			if(evt=="onloadok" || evt=="onerror") continue
+			xhr[evt] = next[evt]
+		}
+	}
+
+	xhr.send(form)
+}
+var _sendFile_defaultOnerror = function(evt) {
+	var res = evt.target.responseText
+	var err = res ? JSON.stringify(res) : null
+	var errText = (typeof err==="object") ? err.text : err
+	if(!errText) errText = "Unexpected error !"
+	alert(errText)
+}*/
+
+MsaFs.postFile = function(file, url, arg1, arg2) {
+	sendFile(file, "POST", url, arg1, arg2)
+}
+
+// download a file
+MsaFs.download = function(url, args) {
+	var fullUrl = url
+	if(args!==undefined) fullUrl += Msa.formatUrlArgs(args)
+	// build download DOM elem
+	var a = document.createElement('a')
+	a.href = fullUrl
+	a.setAttribute("download", basename(fullUrl))
+	// trigger download
+	a.click()
+}
+
+// various
+
+var getArg = function(args, name, defVal) {
+	var val = args && args[name]
+	return (val===undefined) ? defVal : val
+}
+</script>
