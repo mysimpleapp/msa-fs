@@ -2,7 +2,7 @@
 <link rel="import" href="msa-fs.html"></link>
 <link rel="import" href="msa-fs-cascade.html"></link>
 <link rel="import" href="msa-fs-dir-viewer.html"></link>
-<link rel="import" href="/utils/msa-popup.html"></link>
+<link rel="import" href="/utils/msa-utils-popup.html"></link>
 <link rel="import" href="/user/msa-user-login.html"></link>
 <script src="/fs/prismjs/prism.js"></script>
 <link rel="stylesheet" href="/fs/prismjs/themes/prism-okaidia.css" />
@@ -92,7 +92,7 @@ msa-fs-explorer .viewer > * {
 		return this.getAttribute("request-server") !== "false"
 	}
 	explorerMethods.getBaseUrl = function() {
-		return this.getAttribute("base-url") || "/fs/api"
+		return this.getAttribute("base-url") || "/fs"
 	}
 	explorerMethods.getSyncUrl = function() {
 		return this.getAttribute("sync-url") === "true"
@@ -102,7 +102,7 @@ msa-fs-explorer .viewer > * {
 		this.Q(".path").value = path
 		this.setAttribute("path", path)
 		if(this.getSyncUrl())
-			history.replaceState(null, null, Msa.formatUrl({path:path}))
+			window.history.replaceState(null, null, join(this.getBaseUrl(), "ui", path))
 	}
 
 	// REQUEST
@@ -115,9 +115,8 @@ msa-fs-explorer .viewer > * {
 
 	// get file metadata
 	explorerMethods.getMetadata = function(path, next) {
-		var url = join(this.getBaseUrl(), path)
+		var url = join(this.getBaseUrl(), 'meta', path)
 		Msa.get(url, {
-			query: { mode:'metadata' },
 			onsuccess: next,
 			onbadperm: onbadperm(this)
 		})
@@ -130,9 +129,8 @@ msa-fs-explorer .viewer > * {
 		if(cache && refreshCache!==true) next(cache)
 		else {
 			var explorer = this
-			var url = join(explorer.getBaseUrl(), path)
+			var url = join(explorer.getBaseUrl(), 'list', path)
 			Msa.get(url, {
-				query: { mode:'list' },
 				onsuccess: function(files){
 					fileCache[path] = files
 					next(files)
@@ -145,20 +143,22 @@ msa-fs-explorer .viewer > * {
 	// remove a file
 	explorerMethods.remove = function(names) {
 		if(!names) names = this.getSelectedNames()
-		if(names.length===0) return
-		var explorer = this
-		var url = join(explorer.getBaseUrl(), dirname(explorer.getPath()))
-		Msa.delete(url, { query:{ paths:names.join(',') }}, function(){
-			explorer.goBack()
+		var nbDeleting = names.length
+		names.forEach(name => {
+			var url = join(this.getBaseUrl(), 'dir', dirname(this.getPath()), name)
+			Msa.delete(url, () => {
+				if(--nbDeleting===0)
+					this.goBack()
+			})
 		})
 	}
 
 	// create a directory
 	explorerMethods.mkdir = function(name) {
 		if(!name) return
-		var url = join(this.getBaseUrl(), this.getPath(), name)
+		var url = join(this.getBaseUrl(), 'dir', this.getPath(), name)
 		var explorer = this
-		Msa.post(url, {query:{type:'dir'}}, function(res){
+		Msa.post(url, function(res){
 			explorer.refresh()
 		})
 	}
@@ -166,7 +166,7 @@ msa-fs-explorer .viewer > * {
 	// upload a file
 	explorerMethods.upload = function(files) {
 		var explorer = this
-		var url = join(this.getBaseUrl(), this.getPath())
+		var url = join(this.getBaseUrl(), 'data', this.getPath())
 		MsaFs.postFile(files, url, function(){
 			explorer.refresh()
 		})
@@ -269,7 +269,7 @@ msa-fs-explorer .viewer > * {
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
 		var img = document.createElement("img")
-		img.src = join(this.getBaseUrl(), path)
+		img.src = join(this.getBaseUrl(), 'data', path)
 		viewer.appendChild(img)
 	}
 
@@ -279,7 +279,7 @@ msa-fs-explorer .viewer > * {
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
 		var video = document.createElement("video")
-		video.src = join(this.getBaseUrl(), path)
+		video.src = join(this.getBaseUrl(), 'data', path)
 		video.setAttribute('type', type)
 		video.setAttribute('controls', true)
 		viewer.appendChild(video)
@@ -290,8 +290,8 @@ msa-fs-explorer .viewer > * {
 		this.viewerType = "text"
 		this.clearViewer()
 		var viewer = this.Q(".viewer")
-		var url = join(this.getBaseUrl(), path)
-		Msa.get(url, { query:{ mode:"text" }}, function(text){
+		var url = join(this.getBaseUrl(), 'data', path)
+		Msa.get(url, { parseRes:false }, function(text){
 			// create pre element
 			var pre = document.createElement("pre")
 			pre.classList.add('fill')
@@ -325,7 +325,7 @@ msa-fs-explorer .viewer > * {
 		if(!this.editing) return
 		var pre = this.Q(".viewer pre")
 		content = pre.textContent
-		var url = join(this.getBaseUrl(), this.getPath())
+		var url = join(this.getBaseUrl(), 'data', this.getPath())
 		Msa.post(url, {body:content}, function(res){
 			explorer.refresh()
 		})
@@ -349,12 +349,18 @@ msa-fs-explorer .viewer > * {
 	// download a file
 	explorerMethods.download = function(names) {
 		if(!names) names = this.getSelectedNames()
-		var holder = this
-		names.forEach(function(name){
-			var href = name, path = holder.getPath()
-			if(path) href = join(path, name)
+		if(!names) {
+			var holder = this
+			names.forEach(function(name){
+				var href = name, path = dirname(holder.getPath())
+				if(path) href = join(path, name)
+				href = join(holder.getBaseUrl(), 'data', href)
+				MsaFs.download(href)
+			})
+		} else {
+			var href = join(this.getBaseUrl(), 'data', this.getPath())
 			MsaFs.download(href)
-		})
+		}
 	}
 
 	// actions
@@ -378,13 +384,14 @@ msa-fs-explorer .viewer > * {
 	}})
 	explorerActions.push({ el:".remove", evt:"click", act:function() {
 		var holder = this
-		MsaPopup.createConfirm("Are you sure you want to remove these files ?", function(){
+		var files = this.getSelectedNames()
+		MsaUtils.createConfirmPopup("Are you sure you want to remove these files ? " + files, function(){
 			holder.remove()
 		})
 	}})
 	explorerActions.push({ el:".mkdir", evt:"click", act:function() {
 		var holder = this
-		MsaPopup.createInput("Enter the name of the directory to create", function(name){
+		MsaUtils.createInputPopup("Enter the name of the directory to create", function(name){
 			holder.mkdir(name)
 		})
 	}})
@@ -422,7 +429,8 @@ msa-fs-explorer .viewer > * {
 		onattach: function() {
 			if(this.getRequestServer()) {
 				if(this.getSyncUrl())
-					var path = parseUrlArgs().path || ""
+					// TODO: improve this
+					var path = window.location.pathname.slice(this.getBaseUrl().length+3)
 				else
 					var path = this.getPath()
 				this.goTo(path)

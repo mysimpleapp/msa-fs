@@ -1,15 +1,18 @@
 var msaFs = module.exports = Msa.module("fs")
 
-var util = require('util'),
+const util = require('util'),
 	promisify = util.promisify
 
-var path = require('path')
-var basename = path.basename,
+const path = require('path')
+const basename = path.basename,
 	dirname = path.dirname,
 	join = path.join
 
-var fs = require('fs')
-var fsCreateReadStream = fs.createReadStream,
+const joinUrl = Msa.joinUrl,
+	formatHtml = Msa.formatHtml
+
+const fs = require('fs')
+const fsCreateReadStream = fs.createReadStream,
 	fsCreateWriteStream = fs.createWriteStream,
 	fsStat = fs.stat,
 	fsLstat = fs.lstat,
@@ -17,9 +20,18 @@ var fsCreateReadStream = fs.createReadStream,
 	fsMkdir = fs.mkdir,
 	fsUnlink = fs.unlink,
 	fsRmdir = fs.rmdir
+const fsCreateReadStreamPrm = promisify(fs.createReadStream),
+	fsCreateWriteStreamPrm = promisify(fs.createWriteStream),
+	fsStatPrm = promisify(fs.stat),
+	fsLstatPrm = promisify(fs.lstat),
+	fsReaddirPrm = promisify(fs.readdir),
+	fsMkdirPrm = promisify(fs.mkdir),
+	fsUnlinkPrm = promisify(fs.unlink),
+	fsRmdirPrm = promisify(fs.rmdir)
 
-var Busboy = msaFs.busboy = require('busboy')
-var Mime = require('mime')
+
+const Busboy = msaFs.busboy = require('busboy')
+const Mime = require('mime')
 
 // var msaImg = Msa.require('img')
 // var msaCache = Msa.require('cache')
@@ -27,28 +39,30 @@ var Mime = require('mime')
 // MDW //////////////////////////////////////
 
 // respond any readStream as a file to client
-var respondFile = msaFs.respondFile = function(path, arg1, arg2, arg3) {
-	// input args
-	if(arg3) var args=arg1, res=arg2, next=arg3||emptyFun
-	else var res=arg1, next=arg2||emptyFun
-	// create readStream, if not provided
-	var readStream = defArg(args, 'readStream')
-	if(!readStream){
-		fsStat(path, function(err){
-			if(err && err.code=='ENOENT') return next(404)
-			else if(err) return next(err)
-			_respondFile(path, fsCreateReadStream(path), args, res, next)
-		})
-	} else _respondFile(path, readStream, args, res, next)
-}
-var _respondFile = function(path, readStream, args, res, next){
-	var mode = defArg(args, 'mode', 'data')
-	// content Type
-	if(mode=='text') res.writeHead(200, { 'Content-Type': 'text/plain' })
-	else if(mode=='data') res.writeHead(200, { 'Content-Type': Mime.lookup(path) })
-	else return next('Unknown mode "'+mode+'"')
-	// send file content
-	readStream.pipe(res)
+const sendFile = msaFs.sendFile = async function(path, res, args) {
+	// create readStream (except if provided)
+	var rs = (typeof path === "string") ? fsCreateReadStream(path) : path
+	// content type
+	var contentType = defArg(args, 'contentType')
+	if(!contentType) contentType = Mime.lookup(rs.path)
+	// read stream callbacks
+	var first = true
+	rs.on('readable', () => {
+		if(!first) return
+		first = false
+		res.writeHead(200, { 'Content-Type': contentType })
+		rs.pipe(res)
+	})
+	rs.on('error', err => {
+		if(!first) return
+		first = false
+		if(err.code==='ENOENT') {
+			return res.sendStatus(404)
+		} else {
+			console.error(err)
+			return res.sendStatus(500)
+		}
+	})
 }
 
 // receive file(s) from client
@@ -70,132 +84,128 @@ var receiveFile = msaFs.receiveFile = function(req, onFile, next) {
 // Core functions //////////////////////////////////////
 
 // join
-msaFs.join = join
+msaFs.join = fs.join
 
 // stream
 
-var createReadStream = msaFs.createReadStream = function(path, next) {
-	if(!next) next=emptyFun
-	fsStat(path, function(err, stats){
-		if(err) {
-			if(err.code=='ENOENT') return next(404)
-			return next(err)
-		}
-		next(null, fsCreateReadStream(path))
-	})
+var createReadStream = msaFs.createReadStream = async function(path, next) {
+	var oRs, oErr
+	try {
+		var stats = await fsStatPrm(path)
+		oRs = fsCreateReadStream(path)
+	} catch(err) {
+		oErr = (err.code=='ENOENT') ? 404 : err
+	}
+	next(oErr, oRs)
 }
 
-var createWriteStream = msaFs.createWriteStream = function(path, next) {
-	if(!next) next=emptyFun
-	// create dir (if necessary)
-	var dirpath = dirname(path)
-	mkdir(dirpath, function(err) {
-		// create stream
-		next(err, fsCreateWriteStream(path))
-	})
+var createWriteStream = msaFs.createWriteStream = async function(path, next) {
+	var oWs, oErr
+	try {
+		// create dir (if necessary)
+		var dirpath = dirname(path)
+		await mkdirpPrm(dirpath)
+		oWs = fsCreateWriteStream(path)
+	} catch(err) { oErr = err }
+	next(oErr, oWs)
 }
+
 
 // getMetadata
 
-var getMetadata = msaFs.getMetadata = function(path, next){
-	if(!next) next=emptyFun
-	manageArr(path, _getMetadata1, next, true)
-}
-var _getMetadata1 = function(path, next){
-	fsStat(path, function(err, stats){
-		if(err) {
-			if(err.code=='ENOENT') return next(404)
-			return next(err)
+var getMetadata = msaFs.getMetadata = async function(iPath, next){
+	var oDatas = [], oErr
+	try {
+		var paths = asArr(iPath)
+		for(var path of paths) {
+			try {
+				var stats = await fsStatPrm(path)
+			} catch(err) {
+				if(err.code=='ENOENT') throw 404
+				else throw err
+			}
+			var data = {}
+			var name = basename(path)
+			data.name = name
+			data.type = stats.isDirectory() ? "dir" : "file"
+			data.size = stats.size
+			data.mime = Mime.lookup(name)
+			oDatas.push(data)
 		}
-		_getMetadata2(path, stats, next)
-	})
+	} catch(err) { oErr = err }
+	next(oErr, isArr(iPath) ? oDatas : oDatas[0])
 }
-var _getMetadata2 = function(path, stats, next){
-	var data = {}
-	var name = basename(path)
-	data.name = name
-	data.type = stats.isDirectory() ? "dir" : "file"
-	data.size = stats.size
-	data.mime = Mime.lookup(name)
-	next(null, data)
-}
+var getMetadataPrm = msaFs.getMetadataPrm = promisify(getMetadata)
 
 // list
 
-var list = msaFs.list = function(path, next) {
-	if(!next) next=emptyFun
-	fsReaddir(path, function(err, filenames){
-		if(err) return next(err)
-		getMetadata(joins(path, filenames), next)
-	})
+const list = msaFs.list = async function(iPath, next) {
+	var oList = [], oErr
+	try {
+		var paths = asArr(iPath)
+		for(var path of paths){
+			var filenames = await fsReaddirPrm(path)
+			var data = await getMetadataPrm(joins(path, filenames))
+			oList.push(data)
+		}
+	} catch(err) { oErr = err }
+	next(oErr, isArr(iPath) ? oList : oList[0])
 }
+const listPrm = promisify(list)
 
-// remove
+// rmdirp
 
-var remove = msaFs.remove = function(path, next){
-	if(!next) next=emptyFun
-	manageArr(path, _remove, next)
+var rmdirp = msaFs.rmdirp = async function(path, next=emptyFun){
+	var oErr
+	try {
+		var paths = asArr(path)
+		for(var path of paths){
+			// check if it is file or directory
+			var stat = await fsLstatPrm(path)
+			if(stat.isDirectory()) {
+				// this is a dir, read content
+				var subfiles = await fsReaddirPrm(path)
+				// remove sub-files
+				await rmdirpPrm(joins(path, subfiles))
+				// remove directory
+				await fsRmdirPrm(path)
+			} else {
+				// remove file
+				await fsUnlinkPrm(path)
+			}
+		}
+	} catch(err) { oErr = err }
+	next(oErr)
 }
+var rmdirpPrm = msaFs.rmdirpPrm = promisify(rmdirp)
 
-var _remove = function(path, next) {
-	// check if it is file or directory
-	fsLstat(path, function(err, stat){
-		if(err) return next(err)
-		_remove1(path, stat, next)
-	})
-}
-var _remove1 = function(path, stat, next){
-	if(stat.isDirectory()) {
-		// this is a dir, read content
-		fsReaddir(path, function(err, subfiles){
-			if(err) return next(err)
-			_removeDir(path, subfiles, next)
-		})
-	} else {
-		// remove file
-		fsUnlink(path, next)
-	}
-}
-var _removeDir = function(path, subfiles, next){
-	// remove sub-files
-	remove(joins(path, subfiles), function(err){
-		if(err) return next(err)
-		// remove directory
-		fsRmdir(path, next)
-	})
-}
-
-// mkdir
+// mkdirp
 
 // TODO: Add "mode" in input args
-var mkdir = msaFs.mkdir = function(path, next){
-	if(!next) next=emptyFun
-	manageArr(path, _mkdir1, next)
+var mkdirp = msaFs.mkdirp = async function(path, next=emptyFun) {
+	var oErr
+	try {
+		var paths = asArr(path)
+		for(var path of paths){
+			try {
+				await fsMkdirPrm(path)
+			} catch(err) {
+				if(err.code==='ENOENT') {
+					// if parent directory does not exists, create it
+					await mkdirpPrm(dirname(path))
+					await mkdirpPrm(path)
+				} else if(err.code==='EEXIST') {
+					// if directory already exists, just continue
+					// TODO: should check if it is a valid directory
+				} else throw err
+			}
+		}
+	} catch(err) { oErr = err }
+	next(oErr)
 }
-var _mkdir1 = function(path, next){
-	fsMkdir(path, function(err){
-		_mkdir2(path, err, next)
-	})
-}
-var _mkdir2 = function(path, err, next){
-	if(err) {
-		// if parent directory does not exists, create it
-		if(err.code==='ENOENT') {
-			var parentPath = dirname(path)
-			_mkdir1(parentPath, function(err){
-				if(err) return next(err)
-				// retry make dir
-				_mkdir1(path, next)
-			})
-			return
-		// if directory already exists, just continue
-		// TODO: should check if it is a valid directory
-		} else if(err.code==='EEXIST') return next()
-		else return next(err)
-	}
-	next()
-}
+var mkdirpPrm = msaFs.mkdirpPrm = promisify(mkdirp)
 
+// TODO: remove extendFs
 // extend functions
 
 msaFs.extendFs = function(fs, fsName){
@@ -210,39 +220,36 @@ msaFs.extendFs = function(fs, fsName){
 // upload
 
 var genUpload = function(fs){
-	var mkdir = fs.mkdir,
-		createWriteStream = fs.createWriteStream
-	fs.upload = function(req, path, next) {
-		if(!next) next=emptyFun
-		mkdir(path, function(err){
-			if(err) return next(err)
-			_upload1(req, path, next)
-		})
-	}
-	var _upload1 = function(req, path, next){
-		var filenames = []
-		receiveFile(req,
-			function(file, filename, attrs){
-				_upload2(path, filenames, file, filename)
-			},
-			function(){
-				next(null, filenames)
-			}
-		)
-	}
-	var _upload2 = function(path, filenames, file, filename){
-		var name = basename(filename)
-		filenames.push(name)
-		var fullPath = join(path, name)
-		createWriteStream(fullPath, function(err, wstream){
-			if(err) return next(err)
-			file.pipe(wstream)
-		})
+	var mkdirpPrm = promisify(fs.mkdirp),
+		createWriteStreamPrm = promisify(fs.createWriteStream)
+	fs.upload = async function(req, path, next=emptyFun) {
+		var oFilenames = [], oErr
+		var first = true
+		var _next = () => {
+			if(!first) return
+			first = false
+			next(oErr, oFilenames)
+		}
+		try {
+			await mkdirpPrm(path)
+			receiveFile(req,
+				async (file, filename, attrs) => {
+					try {
+						var name = basename(filename)
+						oFilenames.push(name)
+						var fullPath = join(path, name)
+						var ws = await createWriteStreamPrm(fullPath)
+						file.pipe(ws)
+					} catch(err) { oErr = err }
+				},
+				_next
+			)
+		} catch(err) { oErr = err; _next() }
 	}
 }
 
 // getThumbnail
-
+// TODO make async
 var genGetThumbnail = function(fs){
 	var fsName = fs.name
 	var createReadStreamPrm = promisify(fs.createReadStream),
@@ -287,7 +294,7 @@ var genGetThumbnail = function(fs){
 }
 
 // compressImg
-
+// TODO make async
 var genComressMedia = function(fs){
 	var params = fs.params
 	var createReadStream = fs.createReadStream,
@@ -350,13 +357,6 @@ msaFs.extendFs(msaFs, 'fs')
 var msaUser = Msa.require("user")
 var checkUserMdw = msaUser.checkUserMdw
 
-msaFs.app.getAsPartial('/', {
-	wel: '/fs/msa-fs-explorer.html',
-	attrs: {
-		'sync-url': true
-	}
-})
-
 // serve file-system
 
 msaFs.serveFs = function(args){
@@ -366,170 +366,131 @@ msaFs.serveFs = function(args){
 	sfs.params = {}
 	sfs.params.rootDir = defArg(args, 'rootDir', Msa.dirname)
 
-	sfs.callbacks = {}
-	sfs.on = on
-	sfs.trigger = trigger
+//	sfs.callbacks = {}
+//	sfs.on = on
+//	sfs.trigger = trigger
 
-	genGetMdw(sfs)
-	genPostMdw(sfs)
-	genDeleteMdw(sfs)
-
-	var subApp = args.subApp
-	if(subApp){
-
-		// if subRoute provided, build sub-subApp
-		var subRoute = args.subRoute
-		if(subRoute) {
-			var subApp2 = Msa.express()
-			subApp.use(subRoute, subApp2)
-			subApp = subApp2
-		}
+	var app = args.app
+	if(app){
 
 		// routes
 		var readPerm = defArg(args, 'readPerm', { group:"admin" })
 		var writePerm = defArg(args, 'writePerm', { group:"admin" })
 		var delPerm = defArg(args, 'delPerm', { group:"admin" })
 
-		subApp.get('*', checkUserMdw(readPerm), sfs.getMdw)
-		subApp.post('*', checkUserMdw(writePerm), sfs.postMdw)
-		subApp.delete('*', checkUserMdw(delPerm), sfs.deleteMdw)
+		// route: ui
+		app.get('/', (req, res, next) => {
+			res.redirect( joinUrl(req.originalUrl, 'ui') )
+		})
+		app.subApp('/ui')
+			.get('*', (req, res, next) => {
+				// build baseUrl
+				var baseUrlArr = req.baseUrl.split('/')
+				baseUrlArr.pop() // remove "ui" from url
+				const baseUrl = joinUrl(...baseUrlArr)
+				// return partial
+				res.partial = formatHtml({
+					wel: '/fs/msa-fs-explorer.html',
+					attrs: {
+						'base-url': baseUrl,
+						'sync-url': true
+					}
+				})
+				next()
+			})
+		// route: data
+		app.subApp('/data')
+			.get('*', checkUserMdw(readPerm), Msa.express.static(sfs.params.rootDir))
+			.post('*', checkUserMdw(writePerm), genPostDataMdw(sfs))
+			.delete('*', checkUserMdw(delPerm), genDelDataMdw(sfs))
+		// route: list
+		app.subApp('/list')
+			.get('*', checkUserMdw(readPerm), genGetListMdw(sfs))
+		// route: meta
+		app.subApp('/meta')
+			.get('*', checkUserMdw(readPerm), genGetMetaMdw(sfs))
+		// route: dir
+		app.subApp('/dir')
+			.post('*', checkUserMdw(writePerm), genPostDirMdw(sfs))
+			.delete('*', checkUserMdw(delPerm), genDelDirMdw(sfs))
 	}
 
 	return sfs
 }
 
-var genGetMdw = function(sfs){
-	var params = sfs.params
-	var fs = sfs.fs,
-		getMetadata = fs.getMetadata,
-		list = fs.list,
-		createReadStream = fs.createReadStream,
-		getThumbnail = fs.getThumbnail
-	sfs.getMdw = function(req, res, next){
-		var path = req.params[0]
-		var fullPath = join(params.rootDir, path)
-		var query = req.query, paths = query.paths
-		var mode = defArg(query, 'mode', 'data')
-		if(paths && (mode=='metadata' || mode=='list'))
-			fullPath = joins(fullPath, paths.split(','))
-		getMetadata(fullPath, function(err, data){
-			if(err) return next(err)
-			_getMdw2(fullPath, mode, data, res, next)
-		})
-	}
-	var _getMdw2 = function(fullPath, mode, data, res, next){
-		var fileType = data.type
-		if(mode=='metadata') res.json(data)
-		else if(mode=='list'){
-			if(fileType=='dir') list(fullPath, _replyJson(res, next))
-			else next(400) // Bad Request
-		} else if(mode=='data' || mode=='text'){
-			if(fileType=='file'){
-				createReadStream(fullPath, function(err, readStream){
-					if(err) return next(err)
-					respondFile(fullPath, {
-						readStream: readStream,
-						mode: mode
-					}, res, next)
-				})
-			}
-			// TODO: code GET for directories (return .tar.gz)
-			else next(400) // Bad Request
-		} else if(mode=='thumb'){
-			if(fileType=='file'){
-				/* getThumbnail(fullPath, function(err, readStream){
-					if(err) return next(err)
-					respondFile(fullPath, {
-						readStream: readStream
-					}, res, next)
-				}) */
-			} else next(400) // Bad Request
-		} else next('Unknown file type "'+fileType+'".')
-	}
+// get list mdw
+const genGetListMdw = sfs => async (req, res, next) => {
+	try {
+		const path = join(sfs.params.rootDir, req.params[0])
+		const files = await listPrm(path)
+		res.json(files)
+	} catch(err) { next(err) }
 }
 
-var genPostMdw = function(sfs){
-	var params = sfs.params,
-		postCallbacks = sfs.postCallbacks
-	var fs = sfs.fs,
-		upload = fs.upload,
-		getMetadata = fs.getMetadata,
-		mkdir = fs.mkdir
-	sfs.postMdw = function(req, res, next){
-		var query = req.query
-		var ctx = {}
-		var path = ctx.path = join(params.rootDir, req.params[0])
-		var type = ctx.type = defArg(query, 'type', 'file')
-		if(type==='file'){
-     if(req.files){
-			  upload(req, path, function(err, filenames){
-				  if(err) return next(err)
-				  ctx.path = joins(path, filenames)
-				  _postMdw2(ctx, res, next)
-			  })
-      } else if(req.body){
-    		createWriteStream(path, function(err, wstream){
-          if(err) return next(err)
-          wstream.end(req.body)
-          _postMdw2(ctx, res, next)
-		    })
-      }
-		} else if(type==='dir'){
-			var paths = query.paths
-			if(paths) path = ctx.path = joins(ctx.path, paths.split(','))
-			mkdir(path, function(err){
-				if(err) return next(err)
-				_postMdw2(ctx, res, next)
-			})
-		} else {
-			next('Unknown type "'+type+'".')
-		}
-	}
-	var _postMdw2 = function(ctx, res, next){
-		sfs.trigger("finish", ctx, function(err){
-			if(err) return next(err)
-			_postMdw3(ctx, res, next)
-		})
-	}
-	var _postMdw3 = function(ctx, res, next){
-		getMetadata(ctx.path, _replyJson(res, next))
-	}
-}
-
-var genDeleteMdw = function(sfs){
-	var params = sfs.params
-	var fs = sfs.fs,
-		remove = fs.remove
-	sfs.deleteMdw = function(req, res, next){
-		var path = join(params.rootDir, req.params[0])
-		var query = req.query, paths = query.paths
-		if(paths) path = joins(path, paths.split(','))
-		remove(path, _replyOK(res, next))
-	}
-}
-
-var _replyOK = function(res, next){
-	return function(err){
-		if(err) return next(err)
-		res.sendStatus(200)
-	}
-}
-var _replyJson = function(res, next){
-	return function(err, data){
-		if(err) return next(err)
+// get meta mdw
+const genGetMetaMdw = sfs => async (req, res, next) => {
+	try {
+		const path = join(sfs.params.rootDir, req.params[0])
+		const data = await getMetadataPrm(path)
 		res.json(data)
+	} catch(err) { next(err) }
+}
+
+// post data mdw
+const genPostDataMdw = sfs => {
+	const uploadPrm = promisify(sfs.fs.upload),
+		createWriteStreamPrm = promisify(sfs.fs.createWriteStream)
+	return async (req, res, next) => {
+		try {
+			const path = join(sfs.params.rootDir, req.params[0])
+			const contentType = req.headers['content-type']
+			if(contentType.startsWith('multipart/form-data')){
+				const filenames = await uploadPrm(req, path)
+//				ctx.path = joins(path, filenames)
+			} else if(req.body){
+				var ws = await createWriteStreamPrm(path)
+				ws.end(req.body)
+				// TODO: write progression
+			}
+			res.sendStatus(200)
+		} catch(err) { next(err) }
 	}
 }
+
+
+// post dir mdw
+const genPostDirMdw = sfs => async (req, res, next) => {
+	try {
+		const path = join(sfs.params.rootDir, req.params[0])
+		await mkdirpPrm(path)
+		res.sendStatus(200)
+	} catch(err) { next(err) }
+}
+
+const genDelDataMdw = sfs => async (req, res, next) => {
+	try {
+		const path = join(sfs.params.rootDir, req.params[0])
+		await fsUnlinkPrm(path)
+		res.sendStatus(200)
+	} catch(err) { next(err) }
+}
+
+const genDelDirMdw = sfs => async (req, res, next) => {
+	try {
+		const path = join(sfs.params.rootDir, req.params[0])
+		await rmdirpPrm(path)
+		res.sendStatus(200)
+	} catch(err) { next(err) }
+}
+
 
 // common
 
-var isArr = function(obj){
-	return typeof(obj)==="object" && obj.length!==undefined
-}
+var isArr = Array.isArray
 
 var joins = function(rootDir, path){
 	if(!isArr(path)) return join(rootDir, path)
-	else return path.map(function(p) { return join(rootDir, p) })
+	else return path.map( p => join(rootDir, p) )
 }
 
 var defArg = function(args, key, defVal){
@@ -539,28 +500,11 @@ var defArg = function(args, key, defVal){
 	return val
 }
 
-var manageArr = function(arg, next1, next2, returnRes){
-	if(isArr(arg)){
-		var len=arg.length, nbToDo=len
-		var gerr=null
-		if(returnRes) var gres=[]
-		var setDone = function(i){
-			return function(err, res){
-				if(err) gerr=err
-				if(returnRes) gres[i]=res
-				if(--nbToDo==0)
-					next2(gerr, gres)
-			}
-		}
-		if(len>0){
-			for(var i=0; i<len; ++i){
-				next1(arg[i], setDone(i))
-			}
-		}
-		else next2(gerr, gres)
-	} else next1(arg, next2)
+var asArr = function(a){
+	return isArr(a) ? a : [a]
 }
 
+/*
 var on = function(evt, callback){
 	var callbacks = this.callbacks[evt]
 	if(!callbacks) callbacks = this.callbacks[evt] = []
@@ -580,6 +524,7 @@ var _trigger = function(_this, callbacks, i, len, ctx, next){
 		_trigger(_this, callbacks, i+1, len, ctx, next)
 	})
 }
+*/
 
 var emptyFun = function(){}
 
@@ -588,7 +533,7 @@ var emptyFun = function(){}
 msaFs.serveFs({
 	fs: msaFs,
 	sfs: msaFs,
-	subApp: msaFs.app,
+	app: msaFs.app,
 	subRoute: '/api',
 	rootDir: Msa.dirname,
 	readPerm: { group:"admin" },

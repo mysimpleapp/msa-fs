@@ -75,7 +75,7 @@ msa-fs-dir-viewer .file.selected {
 		return this.getAttribute("request-server") !== "false"
 	}
 	viewerMethods.getBaseUrl = function() {
-		return this.getAttribute("base-url") || "/fs/api"
+		return this.getAttribute("base-url") || "/fs"
 	}
 
 	viewerMethods.addPath = function(subPath) {
@@ -88,10 +88,9 @@ msa-fs-dir-viewer .file.selected {
 
 	// list files from server
 	viewerMethods.listFiles = function() {
-		var viewer = this
-		var url = join(explorer.getBaseUrl(), path)
-		Msa.get(url, function(files){
-			viewer.showFiles(files)
+		var url = join(this.getBaseUrl(), 'list', path)
+		Msa.get(url, files => {
+			this.showFiles(files)
 		})
 	}
 

@@ -43,7 +43,7 @@ msa-fs-cascade .file svg {
 		return this.getAttribute("request-server") !== "false"
 	}
 	cascadeMethods.getBaseUrl = function() {
-		return this.getAttribute("base-url") || "/fs/api"
+		return this.getAttribute("base-url") || "/fs"
 	}
 
 	cascadeMethods.addPath = function(subPath) {
@@ -56,9 +56,8 @@ msa-fs-cascade .file svg {
 
 	// list files from server
 	cascadeMethods.listFiles = function() {
-		var cascade = this
-		var url = join(explorer.getBaseUrl(), path)
-		Msa.get(url, function(files){
+		var url = join(this.getBaseUrl(), 'list', path)
+		Msa.get(url, files => {
 			cascade.showFiles(files)
 		})
 	}

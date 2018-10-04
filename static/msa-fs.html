@@ -113,12 +113,18 @@ MsaFs.postFile = function(file, url, arg1, arg2) {
 MsaFs.download = function(url, args) {
 	var fullUrl = url
 	if(args!==undefined) fullUrl += Msa.formatUrlArgs(args)
-	// build download DOM elem
+	// build (hidden) download DOM elem
 	var a = document.createElement('a')
+	a.style.position = "absolute"
+	a.style.top = "-1000px"
+	a.style.left = "-1000px"
 	a.href = fullUrl
 	a.setAttribute("download", basename(fullUrl))
 	// trigger download
+	document.body.appendChild(a)
 	a.click()
+	// clean button
+	a.remove()
 }
 
 // various

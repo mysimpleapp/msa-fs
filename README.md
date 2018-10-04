@@ -230,26 +230,23 @@ Msa.delete("/fs/api/file/path", function(){
 
 ## SERVER API
 
-### Function: msaFs.respondFile
+### Function: msaFs.sendFile
 
 Respond file to client.
 
 ```javascript
 // Example
 mySubApp.get("/myRoute", function(req, res, next) {
-  msaFs.respondFile("/file/to/repond", res, next)
+  msaFs.sendFile("/file/to/repond", res)
 })
 ```
 
-* __msaFs.respondFile__: `Function(path [, args], res, next)`
-  * __*path__: `String`, path to file to send to client. If readStream is provided, path is used as file name.
-  * __args__: `Object`, possible properties are:
-    * __readStream__: `ReadStream`, readStream to send to client.
-    * __mode__: `String`, defines the content type of the response. Poosible values are:
-      * __"data"__ (default): The content type is determied from the MIME type.
-      * __"text"__: The file is sent as plain text.
+* __msaFs.sendFile__: `Function(path, res [, args])`
+  * __*path__: `String` or `ReadStream`, path to file to send to client, or associated readstream.
   * __*res__: `Express Res`
-  * __*next__: `Function(err)`, called when something went wrong.
+  * __args__: `Object`, possible properties are:
+    * __mime__: `String`, defines the content type of the response. If not provided, the mime is guessed from the file name. Another possible value is:
+      * __"text"__: The file is sent as plain text.
 
 ### Function: msaFs.receiveFile
 
