@@ -388,15 +388,14 @@ msaFs.serveFs = function(args){
 				var baseUrlArr = req.baseUrl.split('/')
 				baseUrlArr.pop() // remove "ui" from url
 				const baseUrl = joinUrl(...baseUrlArr)
-				// return partial
-				res.partial = formatHtml({
+				// send page
+				res.sendPage({
 					wel: '/fs/msa-fs-explorer.html',
 					attrs: {
 						'base-url': baseUrl,
 						'sync-url': true
 					}
 				})
-				next()
 			})
 		// route: data
 		app.subApp('/data')
