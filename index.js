@@ -354,8 +354,7 @@ msaFs.extendFs(msaFs, 'fs')
 
 // HTTP //////////////////////////////////////
 
-var msaUser = Msa.require("user")
-var checkUserMdw = msaUser.checkUserMdw
+const { checkUserMdw, checkUserPage } = Msa.require("user")
 
 // serve file-system
 
@@ -383,14 +382,14 @@ msaFs.serveFs = function(args){
 			res.redirect( joinUrl(req.originalUrl, 'ui') )
 		})
 		app.subApp('/ui')
-			.get('*', (req, res, next) => {
+			.get('*', checkUserPage(readPerm), (req, res, next) => {
 				// build baseUrl
 				var baseUrlArr = req.baseUrl.split('/')
 				baseUrlArr.pop() // remove "ui" from url
 				const baseUrl = joinUrl(...baseUrlArr)
 				// send page
 				res.sendPage({
-					wel: '/fs/msa-fs-explorer.html',
+					wel: '/fs/msa-fs-explorer.js',
 					attrs: {
 						'base-url': baseUrl,
 						'sync-url': true
