@@ -1,4 +1,4 @@
-var msaFs = module.exports = Msa.module("fs")
+var msaFs = module.exports = new Msa.Module("fs")
 
 const util = require('util'),
 	promisify = util.promisify
