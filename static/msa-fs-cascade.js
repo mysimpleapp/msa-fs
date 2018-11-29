@@ -83,7 +83,7 @@ MsaFsCascadePt.showFiles = function(files) {
 			}
 			this.classList.toggle("selected")
 		}
-		fileDom.ondblclick = function() {
+		fileDom.ondblclick = () => {
 			cascade.dispatchEvent(new CustomEvent('dblselect', {detail:{path:cascade.getPath(), file:file}}))
 			if(file.type=="dir") cascade.addPath(file.name)
 		}

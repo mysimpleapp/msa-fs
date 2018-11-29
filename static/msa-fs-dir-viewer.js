@@ -6,19 +6,19 @@ importHtml(`<style>
 		display: flex;
 		flex-direction: row;
 		flex-wrap: wrap;
-		padding: 5px;
+		padding: 0.5em;
 	}
 	msa-fs-dir-viewer .file {
 		display: inline-flex;
 		flex-direction: column;
-		padding: 5px;
+		justify-content: center;
+		align-items: center;
+		padding: 0.5em;
 	}
 	msa-fs-dir-viewer .file .icon {
 		display: flex;
-		justify-content: center;
-		align-items: center;
-		width: 100px;
-		height: 100px;
+		width: 5em;
+		height: 5em;
 	}
 	msa-fs-dir-viewer .file .icon svg {
 		width: 100%;
@@ -30,9 +30,18 @@ importHtml(`<style>
 	}
 	msa-fs-dir-viewer .file .name {
 		position: relative;
-		width: 100px;
-		height: 20px;
+		width: 5em;
+		height: 1em;
 		text-align: center;
+	}
+	@media all and (max-width: 480px) {
+		msa-fs-dir-viewer .file .icon {
+			width: 4em;
+			height: 4em;
+		}
+		msa-fs-dir-viewer .file .name {
+			width: 4em;
+		}
 	}
 	msa-fs-dir-viewer .file .name .text {
 		position: absolute;
@@ -42,14 +51,14 @@ importHtml(`<style>
 		overflow: hidden;
 		text-overflow: ellipsis;
 	}
-	msa-fs-dir-viewer .file:hover {
-		background-color: #EEF;
-	}
 	msa-fs-dir-viewer .file:hover .name .text {
 		height: auto;
 		white-space: normal;
 		overflow: visible;
 		word-wrap: break-word;
+		background-color: #EEF;
+	}
+	msa-fs-dir-viewer .file:hover {
 		background-color: #EEF;
 	}
 	msa-fs-dir-viewer .file.selected {
@@ -113,7 +122,7 @@ MsaFsDirViewerPt.showFiles = function(files) {
 			}
 			this.classList.toggle("selected")
 		}
-		fileDom.ondblclick = function() {
+		fileDom.ondblclick = () => {
 			viewer.dispatchEvent(new CustomEvent('dblselect', {detail:{path:path, file:file}}))
 			if(file.type=="dir") viewer.addPath(file.name)
 		}

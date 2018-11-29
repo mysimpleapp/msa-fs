@@ -19,7 +19,7 @@ importHtml(`<style>
 	msa-fs-explorer {
 		display: flex;
 		flex-direction: column;
-		padding: 20px;
+		padding: .2em;
 	}
 	msa-fs-explorer .row {
 		display: flex;
@@ -32,26 +32,26 @@ importHtml(`<style>
 	msa-fs-explorer .fill {
 		flex: 1;
 		align-self: stretch;
+		min-height: 0;
 	}
 	msa-fs-explorer .border {
-		margin: 2px;
+		margin: .2em;
 		border: 1px solid grey;
 	}
 	msa-fs-explorer input, msa-fs-explorer button {
-		margin: 2px;
+		margin: .2em;
 	}
 	msa-fs-explorer .viewer {
-		/* padding: 5px; */
 		justify-content: center;
 		align-items: center;
-flex: 1;
-overflow: auto;
+		overflow: auto;
 	}
 	msa-fs-explorer .viewer > * {
 		margin: 0;
 	}
 	msa-fs-explorer msa-fs-cascade {
-		width: 200px;
+		width: 12em;
+		overflow: auto;
 	}
 	@media all and (max-width: 736px) {
 		msa-fs-explorer msa-fs-cascade {
@@ -64,24 +64,22 @@ overflow: auto;
 // content
 
 const content = `
-	<div class="col">
-		<div class="row">
-			<input class="path" type="text" style="flex:1" />
-			<button class="go">GO</button>
-			<button class="back">Back</button>
-		</div>
-		<div>
-			<button class="upload">Upload</button>
-			<button class="download">Download</button>
-			<button class="remove">Remove</button>
-			<button class="mkdir">Create directory</button>
-			<button class="edit">Edit</button>
-			<button class="save">Save</button>
-		</div>
-		<div class="row" style="flex:1; min-height: 0px;">
-			<msa-fs-cascade class="cascade border" request-server="false"></msa-fs-cascade>
-			<div class="viewer fill border row"></div>
-		</div>
+	<div class="row">
+		<input class="path" type="text" style="flex:1" />
+		<button class="go">GO</button>
+		<button class="back">Back</button>
+	</div>
+	<div>
+		<button class="upload">Upload</button>
+		<button class="download">Download</button>
+		<button class="remove">Remove</button>
+		<button class="mkdir">Create directory</button>
+		<button class="edit">Edit</button>
+		<button class="save">Save</button>
+	</div>
+	<div class="fill row">
+		<msa-fs-cascade class="cascade border" request-server="false"></msa-fs-cascade>
+		<div class="viewer fill border"></div>
 	</div>
 `
 
@@ -293,9 +291,11 @@ export class HTMLMsaFsExplorerElement extends HTMLElement {
 		dirViewer.setAttribute("path", path)
 		dirViewer.setAttribute("request-server", "false")
 		dirViewer.addEventListener("dblselect", evt => {
-			const path = evt.detail.path, file = evt.detail.file
-			if(file.type==='dir')
-				this.goTo(join(path, file.name))
+			const path = evt.detail.path, md = evt.detail.file
+			if(md.type==='dir')
+				this.goTo(join(path, md.name))
+			else
+				this.showFileInViewer(join(path, md.name), md)
 		})
 		dirViewer.showFiles(files)
 		viewer.appendChild(dirViewer)
