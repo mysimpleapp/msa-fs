@@ -207,7 +207,7 @@ export class HTMLMsaFsExplorerElement extends HTMLElement {
 	// upload a file
 	upload(files) {
 		const url = join(this.getBaseUrl(), 'data', this.getPath())
-		MsaFs.postFile(files, url, () => {
+		postFile(files, url, () => {
 			this.refresh()
 		})
 	}
