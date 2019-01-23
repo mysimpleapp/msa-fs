@@ -6,8 +6,8 @@ import "./msa-fs-dir-viewer.js"
 // dynamic imports
 const popupDeps = `
 	<script type="module" src="/utils/msa-utils-popup.js"></script>`
-const createConfirmPopup = importOnCall(popupDeps, "MsaUtilsPopup.createConfirmPopup")
-const createInputPopup = importOnCall(popupDeps, "MsaUtilsPopup.createInputPopup")
+const createConfirmPopup = importOnCall(popupDeps, "MsaUtils.createConfirmPopup")
+const createInputPopup = importOnCall(popupDeps, "MsaUtils.createInputPopup")
 
 const prismDeps = `
 	<script src="/fs/prismjs/prism.js"></script>

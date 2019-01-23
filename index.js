@@ -27,7 +27,7 @@ const fsCreateReadStreamPrm = prm(fs.createReadStream),
 const Busboy = require('busboy')
 const Mime = require('mime')
 
-const { ParamDef } = Msa.require("params")
+const { Param } = Msa.require("params")
 
 // var msaImg = Msa.require('img')
 // var msaCache = Msa.require('cache')
@@ -396,16 +396,16 @@ MsaFsModulePt.initParamsKey = function(kwargs) {
 
 MsaFsModulePt.initParams = function(kwargs) {
 	// register params
-	new ParamDef(`${this.paramsKey}.rootDir`, {
+	new Param(`${this.paramsKey}.rootDir`, {
 		defVal: defArg(kwargs, 'rootDir', Msa.dirname)
 	})
-	new ParamDef(`${this.paramsKey}.dirPerms`, {
+	new Param(`${this.paramsKey}.dirPerms`, {
 		defVal: defArg(kwargs, 'dirPerms', new DirPerms({})),
 		format: val => JSON.stringify(val.dirExprs),
 		parse: val => new this.DirPerms(JSON.parse(val))
 	})
 /*
-	new ParamDef(`${this.paramsKey}.thumbnailsDir`, {
+	new Param(`${this.paramsKey}.thumbnailsDir`, {
 		defVal: defArg(kwargs, 'thumbnailsDir', join(Msa.dirname, "msa-server/generateds/thumbnails"))
 	})
 */
@@ -605,12 +605,14 @@ class MsaMultiFsModule extends Msa.Module {
 					wel: "/fs/msa-fs-list.js",
 					attrs: {
 						"base-url": req.baseUrl
-					}
+					},
+					content: JSON.stringify(list)
 				})
 		})
 
-		app.get("/list", userMdw, (req, res, next) => {
-			res.json(this.list(req.session.user))
+		app.get("/_list", userMdw, (req, res, next) => {
+			const list = this.list(req.session.user)
+			res.json(list)
 		})
 	}
 

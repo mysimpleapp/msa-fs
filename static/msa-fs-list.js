@@ -34,7 +34,8 @@ export default class HTMLMsaFsListElement extends HTMLElement {
 
 	connectedCallback() {
 		this.initContent()
-		this.listFss()
+		if(this.fsList === undefined) this.getFsList()
+		else this.sync()
 	}
 
 	getBaseUrl() {
@@ -42,12 +43,14 @@ export default class HTMLMsaFsListElement extends HTMLElement {
 	}
 
 	initContent(){
+		const iContent = this.textContent
 		this.innerHTML = content
+		if(iContent !== '') this.fsList = JSON.parse(iContent)
 	}
 
-	listFss(){
-		ajax("GET", this.getBaseUrl() + "/list", fss => {
-			this.fss = fss
+	getFsList(){
+		ajax("GET", this.getBaseUrl() + "/_list", list => {
+			this.fsList = list
 			this.sync()
 		})
 	}
@@ -55,7 +58,7 @@ export default class HTMLMsaFsListElement extends HTMLElement {
 	sync() {
 		const tab = this.Q("table.list")
 		tab.innerHTML = ""
-		for(let fs of this.fss) {
+		for(let fs of this.fsList) {
 			const row = tab.insertRow()
 			const cell = row.insertCell()
 			cell.classList.add("clickable")
