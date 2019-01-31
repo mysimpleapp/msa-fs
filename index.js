@@ -479,14 +479,24 @@ MsaFsModulePt.genPostDataMdw = function() { return async (req, res, next) => {
 	try {
 		const path = join(this.params.rootDir, req.url)
 		const contentType = req.headers['content-type']
-		if(contentType.startsWith('multipart/form-data')){
+		if(contentType && contentType.startsWith('multipart/form-data')){
 			const filenames = await this.uploadPrm(req, path)
-		} else if(req.body){
+			res.sendStatus(200)
+		} else {
+			const content = (typeof req.body === "string") ? req.body : ""
 			const ws = await this.createWriteStreamPrm(path)
-			ws.end(req.body)
+			var first = true
+			ws.on('finish', () => {
+				if(first) { first = false } else return
+				res.sendStatus(200)
+			})
+			ws.on('error', err => {
+				if(first) { first = false } else return
+				next(err)
+			})
+			ws.end(content)
 		// TODO: write progression
 		}
-		res.sendStatus(200)
 	} catch(err) { next(err) }
 }}
 

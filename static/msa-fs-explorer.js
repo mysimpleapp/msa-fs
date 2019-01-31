@@ -73,6 +73,7 @@ const content = `
 		<button class="upload">Upload</button>
 		<button class="download">Download</button>
 		<button class="remove">Remove</button>
+		<button class="mkfile">Create file</button>
 		<button class="mkdir">Create directory</button>
 		<button class="edit">Edit</button>
 		<button class="save">Save</button>
@@ -192,6 +193,15 @@ export class HTMLMsaFsExplorerElement extends HTMLElement {
 				if(--nbDeleting===0)
 					this.goBack()
 			})
+		})
+	}
+
+	// create a file
+	mkfile(name) {
+		if(!name) return
+		const url = join(this.getBaseUrl(), 'data', this.getPath(), name)
+		ajax('POST', url, () => {
+			this.refresh()
 		})
 	}
 
@@ -422,6 +432,11 @@ export class HTMLMsaFsExplorerElement extends HTMLElement {
 			const files = this.getSelectedNames()
 			createConfirmPopup("Are you sure you want to remove these files ? " + files, () => {
 				this.remove()
+			})
+		}
+		this.Q(".mkfile").onclick = () => {
+			createInputPopup("Enter the name of the file to create", name => {
+				this.mkfile(name)
 			})
 		}
 		this.Q(".mkdir").onclick = () => {
