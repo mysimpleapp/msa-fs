@@ -14,5 +14,10 @@
     "express-fileupload": "^0.4.0",
     "mime": "^1.3.4",
     "prismjs": "^1.14.0"
+  },
+  "msaKey": "fs",
+  "msaDependecies": {
+    "user": "../msa-user",
+    "params": "../msa-params"
   }
 }
