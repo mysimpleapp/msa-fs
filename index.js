@@ -36,8 +36,8 @@ const { Param } = Msa.require("params")
 // MsaFsModule ////////////////////////////////
 
 class MsaFsModule extends Msa.Module {
-	constructor(key, kwargs) {
-		super(key)
+	constructor(kwargs) {
+		super()
 		this.initParamsKey(kwargs)
 		this.initParams(kwargs)
 		this.initApp()
@@ -592,7 +592,7 @@ class MsaMultiFsModule extends Msa.Module {
 		this.fss = {}
 		if(this.params) {
 			for(let route in this.params) {	
-				this.fss[route] = new MsaFsModule(route, {
+				this.fss[route] = new MsaFsModule({
 					paramsKey: `${this.paramsKey}.${route}`
 				})
 			}
@@ -637,7 +637,7 @@ class MsaMultiFsModule extends Msa.Module {
 	}
 }
 
-const msaFs = module.exports = new MsaMultiFsModule("fs")
+const msaFs = module.exports = new MsaMultiFsModule()
 
 msaFs.MsaFsModule = MsaFsModule
 msaFs.MsaMultiFsModule = MsaMultiFsModule
