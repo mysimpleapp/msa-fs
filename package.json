@@ -1,14 +1,14 @@
 {
-  "name": "msa-fs",
+  "name": "@mysimpleapp/msa-fs",
   "version": "0.1.0",
-  "description": "File SYtem MySimpleApp module",
+  "description": "MySimpleApp module managing files",
   "main": "index.js",
   "scripts": {
     "postinstall": "node scripts/postinstall.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Nicolas CARREZ <nicolas.carrez@gmail.com>",
-  "license": "MIT",
+  "license": "ISC",
   "dependencies": {
     "busboy": "^0.2.14",
     "express-fileupload": "^0.4.0",
