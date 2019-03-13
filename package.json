@@ -1,6 +1,6 @@
 {
   "name": "@mysimpleapp/msa-fs",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "MySimpleApp module managing files",
   "main": "index.js",
   "scripts": {
@@ -17,7 +17,7 @@
   },
   "msaKey": "fs",
   "msaDependecies": {
-    "user": "../msa-user",
-    "params": "../msa-params"
+    "user": "@mysimpleapp/msa-user",
+    "params": "@mysimpleapp/msa-params"
   }
 }
